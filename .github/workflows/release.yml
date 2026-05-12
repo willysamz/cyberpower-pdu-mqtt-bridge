@@ -133,17 +133,6 @@ jobs:
         with:
           ref: gh-pages
           path: gh-pages
-        continue-on-error: true
-
-      - name: Initialize gh-pages if missing
-        run: |
-          if [ ! -d gh-pages ]; then
-            mkdir gh-pages
-            cd gh-pages
-            git init -b gh-pages
-            git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
-            cd ..
-          fi
 
       - name: Update Helm repo index
         run: |
@@ -157,4 +146,4 @@ jobs:
           git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
           git add .
           git commit -m "Release chart ${{ steps.version.outputs.VERSION }}"
-          git push origin gh-pages
+          git push
