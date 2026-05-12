@@ -1,0 +1,112 @@
+# Default values for cyberpower-pdu-mqtt-bridge
+# See https://github.com/willysamz/cyberpower-pdu-mqtt-bridge for documentation
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/willysamz/cyberpower-pdu-mqtt-bridge
+  pullPolicy: IfNotPresent
+  # Defaults to appVersion from Chart.yaml if not set
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# --- PDU / SNMP target ---
+pdu:
+  # REQUIRED: the address of your CyberPower PDU
+  host: "192.0.2.1"
+  port: "161"
+  community: "public"
+  snmpVersion: "2c"
+  timeout: "5.0"
+  retries: "1"
+
+# --- Polling cadence ---
+poll:
+  intervalSeconds: "15"
+
+# --- Mains voltage assumption used to derive watts (PDU may not expose voltage reliably) ---
+mainsVoltage: "120.0"
+
+# --- MQTT broker ---
+mqtt:
+  host: "mqtt"
+  port: "1883"
+  clientId: "cyberpower-pdu-mqtt-bridge"
+  topicPrefix: "pdu"
+  keepalive: "60"
+  qos: "0"
+  # If your broker requires authentication, populate username + password.
+  # The chart auto-creates a Secret with the password when set.
+  username: ""
+  password: ""
+
+# --- Home Assistant MQTT discovery ---
+ha:
+  discoveryEnabled: "true"
+  discoveryPrefix: "homeassistant"
+  deviceName: "CyberPower PDU"
+  # Stable device id. Blank → derived from SNMP sysName at first poll.
+  deviceId: ""
+
+# --- Outlet control (Phase 2, disabled at v0.1) ---
+control:
+  enabled: "false"
+
+# --- Logging ---
+logging:
+  level: INFO
+  json: true
+
+service:
+  type: ClusterIP
+  port: 8080
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Pod security context
+podSecurityContext: {}
+
+# Container security context (no special privileges needed)
+securityContext:
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
+  runAsUser: 1000
+  capabilities:
+    drop:
+      - ALL
+
+livenessProbe:
+  httpGet:
+    path: /healthz/live
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /healthz/ready
+    port: http
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 6
+
+resources:
+  limits:
+    cpu: 200m
+    memory: 128Mi
+  requests:
+    cpu: 25m
+    memory: 64Mi
+
+extraEnv: []
+
+podAnnotations: {}
+podLabels: {}

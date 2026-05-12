@@ -1,0 +1,22 @@
+.git/
+.github/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+__pycache__/
+*.pyc
+.idea/
+.vscode/
+.DS_Store
+
+# Repo content not needed at runtime
+tests/
+docs/
+chart/
+scripts/
+Makefile
+README.md
+LICENSE
+*.md

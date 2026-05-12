@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "cyberpower-pdu-mqtt-bridge.fullname" . }}
+  labels:
+    {{- include "cyberpower-pdu-mqtt-bridge.labels" . | nindent 4 }}
+data:
+  PDU_HOST: {{ .Values.pdu.host | quote }}
+  PDU_PORT: {{ .Values.pdu.port | quote }}
+  PDU_COMMUNITY: {{ .Values.pdu.community | quote }}
+  PDU_SNMP_VERSION: {{ .Values.pdu.snmpVersion | quote }}
+  PDU_SNMP_TIMEOUT: {{ .Values.pdu.timeout | quote }}
+  PDU_SNMP_RETRIES: {{ .Values.pdu.retries | quote }}
+  POLL_INTERVAL: {{ .Values.poll.intervalSeconds | quote }}
+  MAINS_VOLTAGE: {{ .Values.mainsVoltage | quote }}
+  MQTT_HOST: {{ .Values.mqtt.host | quote }}
+  MQTT_PORT: {{ .Values.mqtt.port | quote }}
+  MQTT_CLIENT_ID: {{ .Values.mqtt.clientId | quote }}
+  MQTT_TOPIC_PREFIX: {{ .Values.mqtt.topicPrefix | quote }}
+  MQTT_KEEPALIVE: {{ .Values.mqtt.keepalive | quote }}
+  MQTT_QOS: {{ .Values.mqtt.qos | quote }}
+  HA_DISCOVERY_ENABLED: {{ .Values.ha.discoveryEnabled | quote }}
+  HA_DISCOVERY_PREFIX: {{ .Values.ha.discoveryPrefix | quote }}
+  HA_DEVICE_NAME: {{ .Values.ha.deviceName | quote }}
+  HA_DEVICE_ID: {{ .Values.ha.deviceId | quote }}
+  OUTLET_CONTROL_ENABLED: {{ .Values.control.enabled | quote }}
+  SERVER_PORT: {{ .Values.service.port | quote }}
+  LOG_LEVEL: {{ .Values.logging.level | quote }}
+  LOG_JSON: {{ .Values.logging.json | quote }}
