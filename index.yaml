@@ -2,8 +2,27 @@ apiVersion: v1
 entries:
   cyberpower-pdu-mqtt-bridge:
   - apiVersion: v2
+    appVersion: 0.2.0
+    created: "2026-05-12T19:26:03.193412962Z"
+    description: SNMP→MQTT bridge for CyberPower switched/monitored PDUs with Home
+      Assistant auto-discovery
+    digest: 1d51230d503e006926e54853f8c83d4baa46dfa0bfc6a7731a08ce55bdad2bd4
+    keywords:
+    - cyberpower
+    - pdu
+    - snmp
+    - mqtt
+    - home-assistant
+    maintainers:
+    - name: wsamuels
+    name: cyberpower-pdu-mqtt-bridge
+    type: application
+    urls:
+    - https://willysamz.github.io/cyberpower-pdu-mqtt-bridge/cyberpower-pdu-mqtt-bridge-0.2.0.tgz
+    version: 0.2.0
+  - apiVersion: v2
     appVersion: 0.1.1
-    created: "2026-05-12T18:26:22.348918056Z"
+    created: "2026-05-12T19:26:03.192998003Z"
     description: SNMP→MQTT bridge for CyberPower switched/monitored PDUs with Home
       Assistant auto-discovery
     digest: 6961caf29bc7774e15f0c607155096ac33f6ee8eb9b8235799ce4be50aa3961b
@@ -22,7 +41,7 @@ entries:
     version: 0.1.1
   - apiVersion: v2
     appVersion: 0.1.0
-    created: "2026-05-12T18:26:22.348401108Z"
+    created: "2026-05-12T19:26:03.192607494Z"
     description: SNMP→MQTT bridge for CyberPower switched/monitored PDUs with Home
       Assistant auto-discovery
     digest: 53389d4881cdd85ff12da41ef091e51040b53c188d87d77ac813bcb0045a1674
@@ -39,4 +58,4 @@ entries:
     urls:
     - https://willysamz.github.io/cyberpower-pdu-mqtt-bridge/cyberpower-pdu-mqtt-bridge-0.1.0.tgz
     version: 0.1.0
-generated: "2026-05-12T18:26:22.347591092Z"
+generated: "2026-05-12T19:26:03.191987528Z"
