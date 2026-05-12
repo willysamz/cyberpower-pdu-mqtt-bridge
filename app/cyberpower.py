@@ -32,15 +32,32 @@ OID_SYS_NAME = "1.3.6.1.2.1.1.5.0"
 #         `docs/cyberpower-mibs.md` for the reasoning.
 OID_BANK_STATUS_LOAD_DECIAMPS = "1.3.6.1.4.1.3808.1.1.6.3.4.1.5.1"
 
-# Outlet config table (enterprises.3808.1.1.6.5.1.1.*.{outlet_idx})
-# .3 -> outletName (string, user-set in PDU UI; defaults to "Outlet 1" …)
-OID_OUTLET_NAME_BASE = "1.3.6.1.4.1.3808.1.1.6.5.1.1.3"
+# Outlet management table — under the OLDER `epdu` branch (.1.1.3),
+# *not* the `epdu2` branch (.1.1.6) where the bank stats live.
+# The PDU41001 firmware we tested exposes outlets here, with the
+# `epdu2.5.1.*` outlet table missing entirely. Other CyberPower
+# switched-PDU MIBs also expose this older branch, so it's the
+# more compatible read path.
+#
+# `enterprises.3808.1.1.3.3.3.1.1.*.{outlet_idx}`
+#   .1 -> outlet number (int, 1..N)
+#   .2 -> outlet name   (string, user-set in PDU UI; defaults to "OutletN")
+#   .4 -> outlet command / current state
+#         1 = ON
+#         2 = OFF
+#         3 = REBOOT-pending
+#         4 = CANCEL-pending
+#         (This OID is *also* the write target for outlet control —
+#          see `docs/cyberpower-mibs.md`. v0.1.x reads only; v0.2 adds
+#          write via this same OID gated by OUTLET_CONTROL_ENABLED.)
+OID_OUTLET_NAME_BASE = "1.3.6.1.4.1.3808.1.1.3.3.3.1.1.2"
+OID_OUTLET_STATE_BASE = "1.3.6.1.4.1.3808.1.1.3.3.3.1.1.4"
 
-# Outlet status table (enterprises.3808.1.1.6.5.2.1.*.{outlet_idx})
-# .3 -> outletStatus    1=on, 2=off, 3=pendingOff, 4=pendingOn (we collapse to ON/OFF/UNKNOWN)
-# .4 -> outletCurrent   deciamps
-OID_OUTLET_STATE_BASE = "1.3.6.1.4.1.3808.1.1.6.5.2.1.3"
-OID_OUTLET_LOAD_DECIAMPS_BASE = "1.3.6.1.4.1.3808.1.1.6.5.2.1.4"
+# PDU41001 is part of CyberPower's *Switched* series — per-outlet
+# on/off but bank-level metering only. The MIB has no per-outlet
+# load on this hardware. Other CyberPower *Switched Metered-by-
+# Outlet* models do expose it; we'll add that OID under a separate
+# constant once we have one to test against.
 
 
 def deciamps_to_amps(raw: Any) -> float | None:

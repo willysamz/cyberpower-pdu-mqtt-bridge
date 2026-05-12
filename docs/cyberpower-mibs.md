@@ -1,9 +1,16 @@
 # CyberPower MIB reference
 
-All OIDs the bridge reads from the PDU. Anchored under
-`1.3.6.1.4.1.3808.1.1.6` (CyberPower's monitored-PDU MIB branch).
-v0.1.0 has been verified against a CyberPower **PDU41001** running
-firmware **1.3.2** — a single-bank metered PDU.
+All OIDs the bridge reads from the PDU. Spans **two** CyberPower
+MIB branches:
+
+- `enterprises.3808.1.1.6` (`epdu2`) — bank-level status
+- `enterprises.3808.1.1.3` (`epdu`, the older branch) — per-outlet
+  management table. Empirically present on more firmware revisions
+  than the equivalent `epdu2.5.*` outlet table, so we prefer it.
+
+Verified against a CyberPower **PDU41001** running firmware
+**1.3.2** — a Switched-series 8-outlet PDU (per-outlet on/off
+control + bank-level metering only; no per-outlet metering).
 
 ## SNMPv2-MIB (standard)
 
@@ -47,28 +54,52 @@ from a user-configured mains voltage. If you have a firmware
 revision where you can confirm the voltage OID + scale, please
 open an issue.
 
-## Outlet table
+## Outlet management table (`epdu.3.3.3.1.1.*`)
 
-Per-outlet status (state + load) is exposed on **switched**
-CyberPower PDUs at `epdu2.5.1.1.3.{n}` and `epdu2.5.2.1.{3,4}.{n}`.
+The bridge enumerates outlets by walking the `epdu` branch (older
+MIB), which is more reliably populated across CyberPower firmware
+than the newer `epdu2` branch.
 
-The PDU41001 we tested is a **metered-only** unit — it exposes
-itself as a single bank with no per-outlet table. The bridge
-handles this gracefully (outlet count → 0; only bank totals
-published). A switched PDU running the same MIB family should
-auto-discover its outlets at runtime; if yours doesn't, please
-open an issue with a `snmpwalk` dump of
-`1.3.6.1.4.1.3808.1.1.6` so we can add a model profile.
+| OID | What we use it for |
+|---|---|
+| `1.3.6.1.4.1.3808.1.1.3.3.3.1.1.2.{n}` | outlet **name** (string; user-set in PDU UI, defaults to "OutletN") |
+| `1.3.6.1.4.1.3808.1.1.3.3.3.1.1.4.{n}` | outlet **state / command** — `1=ON, 2=OFF, 3=REBOOT, 4=CANCEL`. This OID is also the v0.2 write target for outlet control. |
+
+For each outlet we publish:
+
+- `pdu/outlet/{n}/state` → `ON` / `OFF` (retained)
+- `homeassistant/binary_sensor/{device_id}_outlet_{n}_state/config` (retained discovery)
+
+### Why not the `epdu2.5.*` outlet table?
+
+CyberPower's newer MIB at `enterprises.3808.1.1.6.5.{1,2}.*` is
+defined but **empty** on PDU41001 firmware 1.3.2 — the outlet
+data only lives on the older `epdu` branch. Other models in the
+same family behave the same way. The older branch also covers
+older PDU31xxx/PDU71xxx hardware.
+
+### No per-outlet load on PDU41001
+
+PDU41001 is a **Switched** series PDU — per-outlet on/off control
+but bank-level metering only. CyberPower's *Switched Metered-
+by-Outlet* models (a different series) expose a per-outlet load
+table; the bridge doesn't query for it today, but will once
+someone with that hardware contributes the OID.
 
 ## OIDs we deliberately don't read (yet)
 
-- `epdu2.5.3.*` (outlet control) — writes only. Lands in v0.2 with
-  outlet on/off/cycle for switched PDUs.
 - `epdu.6.*` (sensor probes — temp/humidity if a probe is plugged
   into the PDU's RJ12 port). Add as an opt-in module if anyone
   has hardware to test against.
 - `epdu.7.*` (per-outlet alarms / thresholds). Configuration data,
   not telemetry — not useful for HA entities.
+
+## Outlet control (v0.2, scaffolded today)
+
+The same OID we *read* for outlet state — `epdu.3.3.3.1.1.4.{n}`
+— is **writable** via `snmpset` with the **`private`** community
+(not `public`). v0.1.x reads only; v0.2 will add write behind the
+`OUTLET_CONTROL_ENABLED=true` flag.
 
 ## How to extend
 

@@ -1,6 +1,6 @@
 [project]
 name = "cyberpower-pdu-mqtt-bridge"
-version = "0.1.0"
+version = "0.1.1"
 description = "SNMP→MQTT bridge for CyberPower switched/monitored PDUs with Home Assistant auto-discovery"
 requires-python = ">=3.11"
 

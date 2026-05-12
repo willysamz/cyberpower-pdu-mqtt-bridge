@@ -143,27 +143,27 @@ class Poller:
         return self._outlet_count_cached
 
     async def _poll_outlets(self, count: int, voltage: float | None) -> list[OutletReading]:
+        # `voltage` is unused on Switched-series PDUs (no per-outlet load to derive watts from);
+        # it stays in the signature for forward-compat with Metered-by-Outlet models.
+        _ = voltage
         out: list[OutletReading] = []
         for n in range(1, count + 1):
             oids = await self.snmp.get_many(
                 [
                     cp.outlet_oid(cp.OID_OUTLET_NAME_BASE, n),
                     cp.outlet_oid(cp.OID_OUTLET_STATE_BASE, n),
-                    cp.outlet_oid(cp.OID_OUTLET_LOAD_DECIAMPS_BASE, n),
                 ]
             )
             name = _to_str(oids.get(cp.outlet_oid(cp.OID_OUTLET_NAME_BASE, n)))
             state_raw = oids.get(cp.outlet_oid(cp.OID_OUTLET_STATE_BASE, n))
             state = OutletState(cp.parse_outlet_state(state_raw))
-            amps = cp.deciamps_to_amps(oids.get(cp.outlet_oid(cp.OID_OUTLET_LOAD_DECIAMPS_BASE, n)))
-            watts = cp.watts_from_amps_volts(amps, voltage)
             out.append(
                 OutletReading(
                     number=n,
                     name=name,
                     state=state,
-                    load_amps=amps,
-                    load_watts=watts,
+                    load_amps=None,  # PDU41001 (Switched series) has no per-outlet metering
+                    load_watts=None,
                 )
             )
         return out
@@ -259,16 +259,21 @@ class Poller:
             )
             await self.mqtt.publish(topic, payload, retain=True)
 
-            topic, payload = outlet_load_payload(
-                discovery_prefix=self.settings.ha_discovery_prefix,
-                device_id=device_id,
-                device_name=self.settings.ha_device_name,
-                state_topic=f"{prefix}/outlet/{outlet.number}/load_amps",
-                availability_topic=availability_topic,
-                identity=snapshot.identity,
-                outlet=outlet,
-            )
-            await self.mqtt.publish(topic, payload, retain=True)
+            # Only publish per-outlet load discovery if THIS poll cycle saw
+            # an actual deciamps value — Switched-series PDUs (like PDU41001)
+            # don't expose per-outlet load and we don't want unavailable HA
+            # entities cluttering the device card.
+            if outlet.load_amps is not None:
+                topic, payload = outlet_load_payload(
+                    discovery_prefix=self.settings.ha_discovery_prefix,
+                    device_id=device_id,
+                    device_name=self.settings.ha_device_name,
+                    state_topic=f"{prefix}/outlet/{outlet.number}/load_amps",
+                    availability_topic=availability_topic,
+                    identity=snapshot.identity,
+                    outlet=outlet,
+                )
+                await self.mqtt.publish(topic, payload, retain=True)
 
         log.info(
             "ha_discovery_published",
