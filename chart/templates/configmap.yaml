@@ -24,6 +24,8 @@ data:
   HA_DEVICE_NAME: {{ .Values.ha.deviceName | quote }}
   HA_DEVICE_ID: {{ .Values.ha.deviceId | quote }}
   OUTLET_CONTROL_ENABLED: {{ .Values.control.enabled | quote }}
+  OUTLET_CONTROL_ALLOW: {{ .Values.control.allow | quote }}
+  PDU_SNMP_WRITE_VERSION: {{ .Values.pdu.snmpWriteVersion | quote }}
   SERVER_PORT: {{ .Values.service.port | quote }}
   LOG_LEVEL: {{ .Values.logging.level | quote }}
   LOG_JSON: {{ .Values.logging.json | quote }}

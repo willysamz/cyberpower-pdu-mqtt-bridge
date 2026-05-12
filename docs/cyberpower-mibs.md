@@ -94,12 +94,42 @@ someone with that hardware contributes the OID.
 - `epdu.7.*` (per-outlet alarms / thresholds). Configuration data,
   not telemetry — not useful for HA entities.
 
-## Outlet control (v0.2, scaffolded today)
+## Outlet control (v0.2+)
 
 The same OID we *read* for outlet state — `epdu.3.3.3.1.1.4.{n}`
 — is **writable** via `snmpset` with the **`private`** community
-(not `public`). v0.1.x reads only; v0.2 will add write behind the
-`OUTLET_CONTROL_ENABLED=true` flag.
+(not `public`). Write integer values:
+
+| Value | Effect |
+|---|---|
+| `1` | ON |
+| `2` | OFF |
+| `3` | REBOOT (PDU sequences off → delay → on internally) |
+| `4` | CANCEL (cancels a pending command issued above) |
+
+Write is gated by **two** env vars on the bridge side:
+
+- `OUTLET_CONTROL_ENABLED` — master switch. False (the default)
+  rejects every command with a 501.
+- `OUTLET_CONTROL_ALLOW` — CSV of outlet numbers permitted to be
+  actuated when enabled. Empty string (default) means *all*
+  outlets are allowed; `"1,3,8"` restricts to those three.
+
+Plus one credential:
+
+- `PDU_WRITE_COMMUNITY` — the SNMP community string with write
+  access on the PDU. Defaults to `""` in code so a forgotten
+  config fails fast rather than silently writing with a wrong
+  community. Set to `"private"` (CyberPower factory default) or
+  whatever your unit has configured.
+- `PDU_SNMP_WRITE_VERSION` — `v2c` (default) or `v1`. CyberPower
+  firmware varies; if v2c writes are rejected, switch to v1.
+
+Verify in your PDU's web UI under **Configuration → Security →
+SNMPv1**: the community you use for writes must have access type
+**Read/Write**, and (depending on configuration) its IP filter
+must either be `0.0.0.0` (any host) or include the bridge pod's
+source IP.
 
 ## How to extend
 

@@ -13,16 +13,49 @@ this entity set:
 
 | Entity | What it is |
 |---|---|
-| `binary_sensor.<device_id>_outlet_<n>_state` | One per outlet. `on` when the outlet is powered. |
-| `sensor.<device_id>_outlet_<n>_load_amps` | Per-outlet current draw (amps). |
+| `switch.<device_id>_outlet_<n>` | One per outlet. State is `on` when the outlet is powered. Toggle it to actuate the outlet — works when `OUTLET_CONTROL_ENABLED=true` (else read-only). |
+| `button.<device_id>_outlet_<n>_cycle` | Power-cycle (reboot) the outlet. Publishes `REBOOT` to the same command topic. |
+| `sensor.<device_id>_outlet_<n>_load_amps` | Per-outlet current draw — only on PDU models that expose per-outlet metering (Switched-Metered-by-Outlet). Missing on Switched-only PDUs like the PDU41001. |
 | `sensor.<device_id>_total_load_amps` | Whole-PDU load (amps). |
-| `sensor.<device_id>_total_load_watts` | Apparent power (amps × volts). |
-| `sensor.<device_id>_voltage` | PDU input voltage. |
+| `sensor.<device_id>_total_load_watts` | Apparent power (amps × volts; uses `MAINS_VOLTAGE` config). |
+| `sensor.<device_id>_voltage` | Input voltage (constant from `MAINS_VOLTAGE`; the PDU's voltage OID isn't reliable across firmware revs). |
 
 Entity name in HA falls back to "Outlet 1", "Outlet 2", etc. if
 you haven't set custom outlet names in the PDU's web UI. Set them
-there and they propagate automatically — the bridge re-publishes
-discovery payloads each restart.
+there and the bridge picks up the change on its next poll and
+re-publishes the discovery payload, so the HA-side friendly name
+updates live (no pod restart needed).
+
+### Upgrading from v0.1.x
+
+v0.1.x exposed read-only `binary_sensor.<device_id>_outlet_<n>_state`
+entities. v0.2 retires those (the bridge publishes an empty
+discovery payload to their config topic, which HA reads as a
+delete) and emits new `switch` + `button` entities in their place.
+
+If you had HA automations referencing the old `binary_sensor.*`
+entities, update them to the new `switch.*` IDs after the upgrade.
+
+## Outlet control configuration
+
+Set on the bridge side:
+
+- `OUTLET_CONTROL_ENABLED=true` — master switch (default `false`).
+- `OUTLET_CONTROL_ALLOW="3,8"` — optional allowlist of outlet
+  numbers that can be actuated. Empty string = all outlets allowed.
+  Useful for limiting blast radius during the first production
+  test.
+- `PDU_WRITE_COMMUNITY=private` — the SNMP community with
+  Read/Write access on your PDU. Check it under **Configuration
+  → Security → SNMPv1** in the PDU's web UI.
+- `PDU_SNMP_WRITE_VERSION=v2c` — works on most modern firmware;
+  override to `v1` if the agent rejects v2c sets.
+
+If `OUTLET_CONTROL_ENABLED=false`, the switch entities still
+appear in HA but toggling them is rejected at the bridge — the
+SNMP write never fires, and HA's `optimistic=false` setting on
+the switch means the position reverts to whatever the next poll
+reports.
 
 ## Setting up HA's MQTT integration
 

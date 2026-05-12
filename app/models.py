@@ -15,6 +15,15 @@ class OutletState(str, Enum):
     UNKNOWN = "UNKNOWN"
 
 
+class OutletCommand(str, Enum):
+    """Commands that can be sent to actuate an outlet (v0.2+)."""
+
+    ON = "ON"
+    OFF = "OFF"
+    REBOOT = "REBOOT"
+    CANCEL = "CANCEL"
+
+
 class BridgeState(str, Enum):
     """Bridge connection state to the PDU."""
 

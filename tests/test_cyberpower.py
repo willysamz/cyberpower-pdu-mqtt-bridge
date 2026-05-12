@@ -1,6 +1,7 @@
 """Unit tests for the CyberPower OID parsers."""
 
 from app.cyberpower import (
+    OUTLET_COMMAND_VALUES,
     deciamps_to_amps,
     outlet_oid,
     parse_outlet_state,
@@ -71,3 +72,14 @@ class TestWattsFromAmpsVolts:
 
     def test_missing_volts(self) -> None:
         assert watts_from_amps_volts(0.8, None) is None
+
+
+class TestOutletCommandValues:
+    def test_all_four_commands_mapped(self) -> None:
+        # The 4 verbs the CyberPower MIB accepts on the outlet-command OID.
+        # gportay/cyberpower-pdu and the CyberPower MIB both use these ints.
+        assert OUTLET_COMMAND_VALUES["ON"] == 1
+        assert OUTLET_COMMAND_VALUES["OFF"] == 2
+        assert OUTLET_COMMAND_VALUES["REBOOT"] == 3
+        assert OUTLET_COMMAND_VALUES["CANCEL"] == 4
+        assert set(OUTLET_COMMAND_VALUES.keys()) == {"ON", "OFF", "REBOOT", "CANCEL"}

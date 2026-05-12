@@ -123,31 +123,78 @@ def bank_voltage_payload(
     return topic, payload
 
 
-def outlet_state_payload(
+def legacy_outlet_state_topic(*, discovery_prefix: str, device_id: str, outlet_number: int) -> str:
+    """The v0.1.x `binary_sensor` discovery topic. We publish an empty
+    payload here once at startup to retire the read-only entity in HA
+    after the v0.2 upgrade. After that, the corresponding `switch` topic
+    below takes over."""
+    object_id = f"{device_id}_outlet_{outlet_number}_state"
+    return f"{discovery_prefix}/binary_sensor/{object_id}/config"
+
+
+def outlet_switch_payload(
     *,
     discovery_prefix: str,
     device_id: str,
     device_name: str,
     state_topic: str,
+    command_topic: str,
     availability_topic: str,
     identity: PduIdentity,
     outlet: OutletReading,
 ) -> tuple[str, dict[str, Any]]:
-    """Per-outlet on/off binary_sensor.
+    """Per-outlet `switch` — read state + write ON/OFF from HA.
 
-    A `switch` entity is more useful once outlet control is wired up
-    (Phase 2). For v0.1 we publish a binary_sensor for read-only state.
+    HA renders this as a toggle on the device card. The state topic stays
+    `pdu/outlet/N/state` (same as v0.1.x); the new command topic is
+    `pdu/outlet/N/set`. We mark `optimistic: false` so HA only reports
+    the actual SNMP-confirmed state — the bridge publishes an optimistic
+    state update on successful write + triggers an immediate poll, so the
+    HA UI catches up within ~1 s.
     """
-    object_id = f"{device_id}_outlet_{outlet.number}_state"
-    topic = f"{discovery_prefix}/binary_sensor/{object_id}/config"
+    object_id = f"{device_id}_outlet_{outlet.number}"
+    topic = f"{discovery_prefix}/switch/{object_id}/config"
     name = outlet.name.strip() if outlet.name else f"Outlet {outlet.number}"
     payload: dict[str, Any] = {
         "name": name,
         "unique_id": object_id,
         "state_topic": state_topic,
+        "command_topic": command_topic,
         "payload_on": "ON",
         "payload_off": "OFF",
-        "device_class": "power",
+        "optimistic": False,
+        "device_class": "outlet",
+        "availability_topic": availability_topic,
+        "payload_available": "online",
+        "payload_not_available": "offline",
+        "device": device_block(device_id, device_name, identity),
+    }
+    return topic, payload
+
+
+def outlet_cycle_button_payload(
+    *,
+    discovery_prefix: str,
+    device_id: str,
+    device_name: str,
+    command_topic: str,
+    availability_topic: str,
+    identity: PduIdentity,
+    outlet: OutletReading,
+) -> tuple[str, dict[str, Any]]:
+    """Per-outlet `button` that publishes REBOOT on press.
+
+    Maps to SNMP value 3 — the PDU sequences off → delay → on internally.
+    """
+    object_id = f"{device_id}_outlet_{outlet.number}_cycle"
+    topic = f"{discovery_prefix}/button/{object_id}/config"
+    name = (outlet.name.strip() if outlet.name else f"Outlet {outlet.number}") + " Cycle"
+    payload: dict[str, Any] = {
+        "name": name,
+        "unique_id": object_id,
+        "command_topic": command_topic,
+        "payload_press": "REBOOT",
+        "device_class": "restart",
         "availability_topic": availability_topic,
         "payload_available": "online",
         "payload_not_available": "offline",

@@ -41,7 +41,7 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ include "cyberpower-pdu-mqtt-bridge.fullname" . }}
-            {{- if .Values.mqtt.password }}
+            {{- if or .Values.mqtt.password .Values.pdu.writeCommunity }}
             - secretRef:
                 name: {{ include "cyberpower-pdu-mqtt-bridge.fullname" . }}
             {{- end }}

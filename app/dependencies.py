@@ -2,9 +2,11 @@
 
 from datetime import UTC, datetime
 
+from app.controller import Controller
 from app.poller import Poller
 
 _poller: Poller | None = None
+_controller: Controller | None = None
 _startup_time: datetime | None = None
 
 
@@ -17,6 +19,17 @@ def get_poller() -> Poller:
     if _poller is None:
         raise RuntimeError("Poller not initialized")
     return _poller
+
+
+def set_controller(controller: Controller) -> None:
+    global _controller
+    _controller = controller
+
+
+def get_controller() -> Controller:
+    if _controller is None:
+        raise RuntimeError("Controller not initialized")
+    return _controller
 
 
 def set_startup_time(time: datetime) -> None:

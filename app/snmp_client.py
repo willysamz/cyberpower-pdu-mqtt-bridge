@@ -14,11 +14,13 @@ import structlog
 from pysnmp.hlapi.asyncio import (
     CommunityData,
     ContextData,
+    Integer,
     ObjectIdentity,
     ObjectType,
     SnmpEngine,
     UdpTransportTarget,
     getCmd,  # noqa: N813 — pysnmp's public symbols use camelCase
+    setCmd,  # noqa: N813
     walkCmd,  # noqa: N813
 )
 
@@ -37,15 +39,37 @@ class SnmpClient:
         host: str,
         port: int = 161,
         community: str = "public",
+        write_community: str = "",
+        snmp_write_version: str = "v2c",
         timeout: float = 5.0,
         retries: int = 1,
     ) -> None:
         self.host = host
         self.port = port
         self.community = community
+        # Write community can stay empty when outlet control is disabled.
+        # Callers that actually attempt a `set_*` while this is empty get a
+        # clear SnmpError instead of a public-community write hitting the PDU.
+        self.write_community = write_community
+        self.snmp_write_version = snmp_write_version
         self.timeout = timeout
         self.retries = retries
         self._engine = SnmpEngine()
+
+    def _read_auth(self) -> CommunityData:
+        """SNMPv2c read community (mpModel=1)."""
+        return CommunityData(self.community, mpModel=1)
+
+    def _write_auth(self) -> CommunityData:
+        """Write community using the configured SNMP version.
+
+        mpModel=0 -> SNMPv1
+        mpModel=1 -> SNMPv2c (default; works on most modern CyberPower firmware)
+        """
+        if not self.write_community:
+            raise SnmpError("no SNMP write community configured (set PDU_WRITE_COMMUNITY)")
+        mp_model = 0 if self.snmp_write_version.lower() in ("v1", "1") else 1
+        return CommunityData(self.write_community, mpModel=mp_model)
 
     def _target(self) -> UdpTransportTarget:
         # In pysnmp-lextudio 6.1.x UdpTransportTarget is constructed
@@ -58,7 +82,7 @@ class SnmpClient:
         """SNMP GET a single OID. Returns the value or None on noSuchObject."""
         error_indication, error_status, _error_index, var_binds = await getCmd(
             self._engine,
-            CommunityData(self.community, mpModel=1),  # mpModel=1 → SNMPv2c
+            self._read_auth(),
             self._target(),
             ContextData(),
             ObjectType(ObjectIdentity(oid)),
@@ -108,7 +132,7 @@ class SnmpClient:
         # that don't honour `lexicographicMode`).
         async for error_indication, error_status, _error_index, var_binds in walkCmd(
             self._engine,
-            CommunityData(self.community, mpModel=1),
+            self._read_auth(),
             self._target(),
             ContextData(),
             ObjectType(ObjectIdentity(oid_prefix)),
@@ -131,3 +155,23 @@ class SnmpClient:
                 break
 
         return results
+
+    async def set_int(self, oid: str, value: int) -> None:
+        """SNMP SET an integer value at `oid` using the write community.
+
+        Raises `SnmpError` if no write community is configured or if the
+        PDU returns any non-`noError` response. Returns nothing on success.
+        """
+        error_indication, error_status, _error_index, var_binds = await setCmd(
+            self._engine,
+            self._write_auth(),
+            self._target(),
+            ContextData(),
+            ObjectType(ObjectIdentity(oid), Integer(value)),
+        )
+
+        if error_indication:
+            raise SnmpError(f"SNMP SET {oid}={value}: {error_indication}")
+        if error_status:
+            raise SnmpError(f"SNMP SET {oid}={value}: {error_status.prettyPrint()}")
+        log.info("snmp_set_succeeded", oid=oid, value=value, var_binds=str(var_binds))

@@ -4,7 +4,9 @@ from app.discovery import (
     _slug,
     bank_load_amps_payload,
     derive_device_id,
-    outlet_state_payload,
+    legacy_outlet_state_topic,
+    outlet_cycle_button_payload,
+    outlet_switch_payload,
 )
 from app.models import OutletReading, OutletState, PduIdentity
 
@@ -64,32 +66,67 @@ class TestBankLoadAmpsPayload:
         assert payload["device"]["identifiers"] == ["pdu41001"]
 
 
-class TestOutletStatePayload:
+class TestOutletSwitchPayload:
     def test_uses_outlet_name_when_set(self) -> None:
         outlet = OutletReading(number=1, name="Frigate Server", state=OutletState.ON, load_amps=0.4)
-        topic, payload = outlet_state_payload(
+        topic, payload = outlet_switch_payload(
             discovery_prefix="homeassistant",
             device_id="pdu41001",
             device_name="Rack PDU",
             state_topic="pdu/outlet/1/state",
+            command_topic="pdu/outlet/1/set",
             availability_topic="pdu/bridge/available",
             identity=_identity(),
             outlet=outlet,
         )
-        assert topic == "homeassistant/binary_sensor/pdu41001_outlet_1_state/config"
+        assert topic == "homeassistant/switch/pdu41001_outlet_1/config"
         assert payload["name"] == "Frigate Server"
+        assert payload["unique_id"] == "pdu41001_outlet_1"
+        assert payload["state_topic"] == "pdu/outlet/1/state"
+        assert payload["command_topic"] == "pdu/outlet/1/set"
         assert payload["payload_on"] == "ON"
         assert payload["payload_off"] == "OFF"
+        assert payload["optimistic"] is False
+        assert payload["device_class"] == "outlet"
 
     def test_falls_back_to_indexed_name(self) -> None:
         outlet = OutletReading(number=3, name=None, state=OutletState.OFF)
-        _, payload = outlet_state_payload(
+        _, payload = outlet_switch_payload(
             discovery_prefix="homeassistant",
             device_id="pdu41001",
             device_name="Rack PDU",
             state_topic="pdu/outlet/3/state",
+            command_topic="pdu/outlet/3/set",
             availability_topic="pdu/bridge/available",
             identity=_identity(),
             outlet=outlet,
         )
         assert payload["name"] == "Outlet 3"
+
+
+class TestOutletCycleButtonPayload:
+    def test_button_shape(self) -> None:
+        outlet = OutletReading(number=2, name="NUC", state=OutletState.ON)
+        topic, payload = outlet_cycle_button_payload(
+            discovery_prefix="homeassistant",
+            device_id="pdu41001",
+            device_name="Rack PDU",
+            command_topic="pdu/outlet/2/set",
+            availability_topic="pdu/bridge/available",
+            identity=_identity(),
+            outlet=outlet,
+        )
+        assert topic == "homeassistant/button/pdu41001_outlet_2_cycle/config"
+        assert payload["unique_id"] == "pdu41001_outlet_2_cycle"
+        assert payload["command_topic"] == "pdu/outlet/2/set"
+        assert payload["payload_press"] == "REBOOT"
+        assert payload["device_class"] == "restart"
+        assert payload["name"].endswith("Cycle")
+
+
+class TestLegacyOutletStateTopic:
+    def test_legacy_topic_builds_correctly(self) -> None:
+        topic = legacy_outlet_state_topic(
+            discovery_prefix="homeassistant", device_id="pdu41001", outlet_number=4
+        )
+        assert topic == "homeassistant/binary_sensor/pdu41001_outlet_4_state/config"

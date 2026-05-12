@@ -1,5 +1,7 @@
 """FastAPI app entry point with lifespan-managed poller + MQTT session."""
 
+import asyncio
+import re
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -9,11 +11,17 @@ from fastapi import FastAPI
 
 from app import __version__
 from app.config import settings
-from app.dependencies import set_poller, set_startup_time
+from app.controller import (
+    ControlDisabledError,
+    Controller,
+    OutletNotAllowedError,
+)
+from app.dependencies import set_controller, set_poller, set_startup_time
+from app.models import OutletCommand
 from app.mqtt_client import MqttClient
 from app.poller import Poller
 from app.routers import health, outlets, status, system
-from app.snmp_client import SnmpClient
+from app.snmp_client import SnmpClient, SnmpError
 
 LOG_LEVELS = {"DEBUG": 10, "INFO": 20, "WARNING": 30, "ERROR": 40, "CRITICAL": 50}
 _renderer = (
@@ -52,6 +60,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         host=settings.pdu_host,
         port=settings.pdu_port,
         community=settings.pdu_community,
+        write_community=settings.pdu_write_community,
+        snmp_write_version=settings.pdu_snmp_write_version,
         timeout=settings.pdu_snmp_timeout,
         retries=settings.pdu_snmp_retries,
     )
@@ -67,19 +77,71 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
     poller = Poller(snmp=snmp, mqtt=mqtt, settings=settings)
     set_poller(poller)
+    controller = Controller(snmp=snmp, mqtt=mqtt, poller=poller, settings=settings)
+    set_controller(controller)
 
     # Run the MQTT session for the lifetime of the app; the poller publishes
     # through `mqtt` and pulls from `snmp` inside that session.
     mqtt_ctx = mqtt.session()
     await mqtt_ctx.__aenter__()
     await poller.start()
+    command_task = asyncio.create_task(
+        _command_subscriber(mqtt, controller, settings.mqtt_topic_prefix)
+    )
 
     try:
         yield
     finally:
         log.info("shutting_down_bridge")
+        command_task.cancel()
         await poller.stop()
         await mqtt_ctx.__aexit__(None, None, None)
+
+
+_OUTLET_TOPIC_RE = re.compile(r"^[^/]+/outlet/(?P<n>\d+)/set$")
+
+
+async def _command_subscriber(mqtt: MqttClient, controller: Controller, topic_prefix: str) -> None:
+    """Subscribe to outlet command topics and route messages to the Controller.
+
+    Topic shape:  {prefix}/outlet/{N}/set     payload: ON | OFF | REBOOT | CANCEL
+    """
+    prefix = topic_prefix.strip("/")
+    sub_topic = f"{prefix}/outlet/+/set"
+    await mqtt.subscribe(sub_topic)
+    log.info("command_subscriber_started", topic=sub_topic)
+    async for msg in mqtt.messages:
+        topic_str = str(msg.topic)
+        m = _OUTLET_TOPIC_RE.match(topic_str)
+        if not m:
+            log.warning("command_subscriber_unmatched_topic", topic=topic_str)
+            continue
+        outlet = int(m.group("n"))
+        raw = msg.payload
+        if isinstance(raw, bytes | bytearray):
+            payload = bytes(raw).decode("utf-8", errors="replace").strip().upper()
+        elif isinstance(raw, str):
+            payload = raw.strip().upper()
+        else:
+            log.warning("command_subscriber_bad_payload", topic=topic_str, type=type(raw).__name__)
+            continue
+        try:
+            cmd = OutletCommand(payload)
+        except ValueError:
+            log.warning(
+                "command_subscriber_unknown_command",
+                topic=topic_str,
+                payload=payload,
+            )
+            continue
+        try:
+            await controller.set_outlet(outlet, cmd)
+        except ControlDisabledError as exc:
+            log.warning("command_rejected_disabled", outlet=outlet, error=str(exc))
+        except OutletNotAllowedError as exc:
+            log.warning("command_rejected_not_allowed", outlet=outlet, error=str(exc))
+        except SnmpError as exc:
+            log.warning("command_snmp_failed", outlet=outlet, error=str(exc))
 
 
 app = FastAPI(

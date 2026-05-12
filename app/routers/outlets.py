@@ -1,65 +1,58 @@
-"""Per-outlet control endpoints (scaffolded; disabled at v0.1).
-
-These return HTTP 501 Not Implemented when
-`OUTLET_CONTROL_ENABLED=false` (the default). The route shape is
-fixed so the public OpenAPI surface doesn't change when v0.2 wires
-real implementations behind these endpoints.
-"""
+"""Per-outlet control endpoints (real implementations in v0.2)."""
 
 from fastapi import APIRouter, HTTPException, status
 
-from app.config import settings
+from app.dependencies import get_controller
+from app.models import OutletCommand
 
 router = APIRouter()
 
 
-def _ensure_enabled() -> None:
-    if not settings.outlet_control_enabled:
+async def _exec(outlet_number: int, command: OutletCommand) -> dict:
+    """Hand off to the Controller, translating its exceptions to HTTP."""
+    from app.controller import ControlDisabledError, OutletNotAllowedError
+    from app.snmp_client import SnmpError
+
+    controller = get_controller()
+    try:
+        await controller.set_outlet(outlet_number, command)
+    except ControlDisabledError as exc:
+        raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=str(exc)) from exc
+    except OutletNotAllowedError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    except SnmpError as exc:
         raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail=(
-                "Outlet control is disabled. Set OUTLET_CONTROL_ENABLED=true to enable "
-                "(implementation lands in v0.2)."
-            ),
-        )
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"SNMP set failed: {exc}",
+        ) from exc
+    return {"outlet": outlet_number, "command": command.value, "result": "submitted"}
 
 
 @router.post(
     "/outlets/{outlet_number}/on",
     tags=["Outlets"],
-    summary="Turn an outlet ON (Phase 2)",
+    summary="Turn an outlet ON",
 )
 async def outlet_on(outlet_number: int) -> dict:
-    """Power the outlet on. Returns 501 unless `OUTLET_CONTROL_ENABLED=true`."""
-    _ensure_enabled()
-    # Phase 2: route to actual SNMP set / web-UI command here.
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Outlet control implementation pending v0.2.",
-    )
+    """Power the outlet on (SNMP value 1)."""
+    return await _exec(outlet_number, OutletCommand.ON)
 
 
 @router.post(
     "/outlets/{outlet_number}/off",
     tags=["Outlets"],
-    summary="Turn an outlet OFF (Phase 2)",
+    summary="Turn an outlet OFF",
 )
 async def outlet_off(outlet_number: int) -> dict:
-    _ensure_enabled()
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Outlet control implementation pending v0.2.",
-    )
+    """Power the outlet off (SNMP value 2)."""
+    return await _exec(outlet_number, OutletCommand.OFF)
 
 
 @router.post(
     "/outlets/{outlet_number}/cycle",
     tags=["Outlets"],
-    summary="Power-cycle an outlet (Phase 2)",
+    summary="Power-cycle (reboot) an outlet",
 )
 async def outlet_cycle(outlet_number: int) -> dict:
-    _ensure_enabled()
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Outlet control implementation pending v0.2.",
-    )
+    """Power-cycle the outlet (SNMP value 3). The PDU sequences off→on internally."""
+    return await _exec(outlet_number, OutletCommand.REBOOT)

@@ -52,6 +52,19 @@ OID_BANK_STATUS_LOAD_DECIAMPS = "1.3.6.1.4.1.3808.1.1.6.3.4.1.5.1"
 #          write via this same OID gated by OUTLET_CONTROL_ENABLED.)
 OID_OUTLET_NAME_BASE = "1.3.6.1.4.1.3808.1.1.3.3.3.1.1.2"
 OID_OUTLET_STATE_BASE = "1.3.6.1.4.1.3808.1.1.3.3.3.1.1.4"
+# Alias for the same OID used as the write target by outlet-control
+# (snmpset). Same column; semantically: reading it returns the
+# *current* outlet command/state, writing it issues a new command.
+OID_OUTLET_COMMAND_BASE = OID_OUTLET_STATE_BASE
+
+# Values to write into OID_OUTLET_COMMAND_BASE.{n} to actuate an outlet.
+# See CyberPower's MIB and gportay/cyberpower-pdu for the source of truth.
+OUTLET_COMMAND_VALUES: dict[str, int] = {
+    "ON": 1,
+    "OFF": 2,
+    "REBOOT": 3,  # PDU does its own off → delay → on internally
+    "CANCEL": 4,  # cancels a pending command issued above
+}
 
 # PDU41001 is part of CyberPower's *Switched* series — per-outlet
 # on/off but bank-level metering only. The MIB has no per-outlet

@@ -49,8 +49,21 @@ class Settings(BaseSettings):
     # Stable device identifier; if blank, the poller derives it from SNMP sysName.
     ha_device_id: str = ""
 
-    # --- Outlet control (Phase 2, disabled at v0.1) ---
+    # --- Outlet control ---
+    # Master switch. When False (the default), the bridge subscribes to MQTT
+    # command topics but rejects every command; REST endpoints return 501.
     outlet_control_enabled: bool = False
+    # CSV of outlet numbers that are *permitted* to be actuated when control
+    # is enabled. Empty string = all outlets allowed. Example: "1,3,8".
+    outlet_control_allow: str = ""
+    # SNMP write community (typically `private` on CyberPower; check
+    # Configuration -> Security -> SNMPv1 in the PDU's web UI).
+    # Defaults to the empty string so a misconfigured deploy fails fast
+    # rather than silently using a publicly-known community on a write.
+    pdu_write_community: str = ""
+    # SNMP version used for the write. `v2c` works on most modern CyberPower
+    # firmware; override to `v1` if the agent rejects v2c sets.
+    pdu_snmp_write_version: str = "v2c"
 
     # --- HTTP server ---
     server_host: str = "0.0.0.0"  # noqa: S104 — binding all interfaces is intended inside a pod

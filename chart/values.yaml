@@ -22,6 +22,13 @@ pdu:
   snmpVersion: "2c"
   timeout: "5.0"
   retries: "1"
+  # SNMP write community (typically "private" on CyberPower; check
+  # Configuration -> Security -> SNMPv1 in the PDU's web UI). When set,
+  # the chart wraps it in a Secret. Required for outlet control.
+  writeCommunity: ""
+  # SNMP version to use for write operations. "v2c" works on most modern
+  # CyberPower firmware; override to "v1" only if the agent rejects v2c sets.
+  snmpWriteVersion: "v2c"
 
 # --- Polling cadence ---
 poll:
@@ -51,9 +58,16 @@ ha:
   # Stable device id. Blank → derived from SNMP sysName at first poll.
   deviceId: ""
 
-# --- Outlet control (Phase 2, disabled at v0.1) ---
+# --- Outlet control (v0.2+) ---
 control:
+  # Master switch. False is the safe default — incoming MQTT commands and
+  # REST writes are rejected. Set to "true" only after you've confirmed the
+  # SNMP write community has Read/Write access in the PDU's UI.
   enabled: "false"
+  # CSV of outlet numbers permitted to be actuated when enabled. Empty
+  # string = all outlets allowed. Use "8" (or similar) for the first
+  # production test to limit the blast radius to a single safe outlet.
+  allow: ""
 
 # --- Logging ---
 logging:
